@@ -58,6 +58,8 @@ export class DmlyTrigger implements INodeType {
 		icon: 'file:dmly.svg',
 		group: ['trigger'],
 		version: 1,
+		subtitle:
+			'={{(() => { const events = $parameter["events"] || []; const labels = { contact_created: "contact created", contact_tag_added: "contact tag added", contact_tag_removed: "contact tag removed", incoming_instagram_message: "incoming Instagram message", incoming_messenger_message: "incoming Messenger message", incoming_telegram_message: "incoming Telegram message", incoming_website_message: "incoming Website message", incoming_whatsapp_message: "incoming WhatsApp message", outgoing_instagram_message: "outgoing Instagram message", outgoing_messenger_message: "outgoing Messenger message", outgoing_telegram_message: "outgoing Telegram message", outgoing_website_message: "outgoing Website message", outgoing_whatsapp_message: "outgoing WhatsApp message" }; if (!events.length) return "On DMLY event"; return "On " + events.map((event) => labels[event] || event).join(", "); })()}}',
 		description: 'Starts the workflow when DMLY sends webhook events.',
 		defaults: {
 			name: 'DMLY Trigger',
