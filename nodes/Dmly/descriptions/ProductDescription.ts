@@ -1,0 +1,130 @@
+import type { INodeProperties } from 'n8n-workflow';
+
+export const productOperations: INodeProperties[] = [
+	{
+		displayName: 'Operation',
+		name: 'operation',
+		type: 'options',
+		noDataExpression: true,
+		displayOptions: { show: { resource: ['product'] } },
+		options: [
+			{ name: 'Create', value: 'create', action: 'Create a product', description: 'Create a new product' },
+			{ name: 'Delete', value: 'delete', action: 'Delete a product', description: 'Delete a product' },
+			{ name: 'Get', value: 'get', action: 'Get a product', description: 'Get a single product' },
+			{ name: 'Get Many', value: 'getAll', action: 'Get many products', description: 'List products in the Offerings catalogue' },
+			{ name: 'Update', value: 'update', action: 'Update a product', description: 'Update an existing product' },
+		],
+		default: 'getAll',
+	},
+];
+
+export const productFields: INodeProperties[] = [
+	{
+		displayName: 'Product ID',
+		name: 'productId',
+		type: 'string',
+		required: true,
+		default: '',
+		description: 'The product UUID',
+		displayOptions: { show: { resource: ['product'], operation: ['delete', 'get', 'update'] } },
+	},
+
+	// ---- create ----
+	{
+		displayName: 'Name',
+		name: 'name',
+		type: 'string',
+		required: true,
+		default: '',
+		description: 'Product name (max 160)',
+		displayOptions: { show: { resource: ['product'], operation: ['create'] } },
+	},
+	{
+		displayName: 'Additional Fields',
+		name: 'additionalFields',
+		type: 'collection',
+		placeholder: 'Add Field',
+		default: {},
+		displayOptions: { show: { resource: ['product'], operation: ['create'] } },
+		options: [
+			{ displayName: 'Active', name: 'active', type: 'boolean', default: true, description: 'Whether the product is active (defaults to true)' },
+			{ displayName: 'Category ID', name: 'categoryId', type: 'string', default: '', description: 'ServiceCategory UUID to file the product under' },
+			{ displayName: 'Cost Price', name: 'costPrice', type: 'number', default: 0, description: 'Cost price (0-100000000)' },
+			{ displayName: 'Currency', name: 'currency', type: 'string', default: '', description: 'ISO currency code (max 3 chars), stored uppercase' },
+			{ displayName: 'Description', name: 'description', type: 'string', default: '', description: 'Product description (max 2000)' },
+			{ displayName: 'Image URL', name: 'imageUrl', type: 'string', default: '', description: 'Product image URL (max 2048)' },
+			{ displayName: 'Low Stock Threshold', name: 'lowStockThreshold', type: 'number', default: 0, description: 'Low-stock alert threshold (0-100000000)' },
+			{ displayName: 'Meta Sync Facebook', name: 'metaSyncFacebook', type: 'boolean', default: false, description: 'Whether to sync this product to the Facebook catalogue' },
+			{ displayName: 'Meta Sync Instagram', name: 'metaSyncInstagram', type: 'boolean', default: false, description: 'Whether to sync this product to the Instagram catalogue' },
+			{ displayName: 'Price', name: 'price', type: 'number', default: 0, description: 'Sale price (0-100000000)' },
+			{ displayName: 'SKU', name: 'sku', type: 'string', default: '', description: 'Stock-keeping unit (max 80)' },
+			{ displayName: 'Sort Order', name: 'sortOrder', type: 'number', default: 0, description: 'Ordering weight (0-100000)' },
+			{ displayName: 'Stock Quantity', name: 'stockQuantity', type: 'number', default: 0, description: 'Opening/target stock level; only applied when Track Stock is true' },
+			{ displayName: 'Tax Inclusive', name: 'taxInclusive', type: 'boolean', default: false, description: 'Whether the price already includes tax' },
+			{ displayName: 'Tax Rate', name: 'taxRate', type: 'number', default: 0, description: 'Tax rate percent (0-100)' },
+			{ displayName: 'Track Stock', name: 'trackStock', type: 'boolean', default: false, description: 'Whether to track stock levels via the stock ledger' },
+		],
+	},
+
+	// ---- update ----
+	{
+		displayName: 'Update Fields',
+		name: 'updateFields',
+		type: 'collection',
+		placeholder: 'Add Field',
+		default: {},
+		displayOptions: { show: { resource: ['product'], operation: ['update'] } },
+		options: [
+			{ displayName: 'Active', name: 'active', type: 'boolean', default: true, description: 'Whether the product is active' },
+			{ displayName: 'Category ID', name: 'categoryId', type: 'string', default: '', description: 'ServiceCategory UUID to file the product under' },
+			{ displayName: 'Cost Price', name: 'costPrice', type: 'number', default: 0, description: 'Cost price (0-100000000)' },
+			{ displayName: 'Currency', name: 'currency', type: 'string', default: '', description: 'ISO currency code (max 3 chars), stored uppercase' },
+			{ displayName: 'Description', name: 'description', type: 'string', default: '', description: 'Product description (max 2000)' },
+			{ displayName: 'Image URL', name: 'imageUrl', type: 'string', default: '', description: 'Product image URL (max 2048)' },
+			{ displayName: 'Low Stock Threshold', name: 'lowStockThreshold', type: 'number', default: 0, description: 'Low-stock alert threshold (0-100000000)' },
+			{ displayName: 'Meta Sync Facebook', name: 'metaSyncFacebook', type: 'boolean', default: false, description: 'Whether to sync this product to the Facebook catalogue' },
+			{ displayName: 'Meta Sync Instagram', name: 'metaSyncInstagram', type: 'boolean', default: false, description: 'Whether to sync this product to the Instagram catalogue' },
+			{ displayName: 'Name', name: 'name', type: 'string', default: '', description: 'Product name (max 160)' },
+			{ displayName: 'Price', name: 'price', type: 'number', default: 0, description: 'Sale price (0-100000000)' },
+			{ displayName: 'SKU', name: 'sku', type: 'string', default: '', description: 'Stock-keeping unit (max 80)' },
+			{ displayName: 'Sort Order', name: 'sortOrder', type: 'number', default: 0, description: 'Ordering weight (0-100000)' },
+			{ displayName: 'Stock Quantity', name: 'stockQuantity', type: 'number', default: 0, description: 'Target stock level; only applied when Track Stock is true (resets the level through the ledger)' },
+			{ displayName: 'Tax Inclusive', name: 'taxInclusive', type: 'boolean', default: false, description: 'Whether the price already includes tax' },
+			{ displayName: 'Tax Rate', name: 'taxRate', type: 'number', default: 0, description: 'Tax rate percent (0-100)' },
+			{ displayName: 'Track Stock', name: 'trackStock', type: 'boolean', default: false, description: 'Whether to track stock levels via the stock ledger; turning off clears the quantity' },
+		],
+	},
+
+	// ---- getAll ----
+	{
+		displayName: 'Return All',
+		name: 'returnAll',
+		type: 'boolean',
+		default: false,
+		description: 'Whether to return all results or only up to a given limit',
+		displayOptions: { show: { resource: ['product'], operation: ['getAll'] } },
+	},
+	{
+		displayName: 'Limit',
+		name: 'limit',
+		type: 'number',
+		typeOptions: { minValue: 1 },
+		default: 50,
+		description: 'Max number of results to return',
+		displayOptions: { show: { resource: ['product'], operation: ['getAll'], returnAll: [false] } },
+	},
+	{
+		displayName: 'Filters',
+		name: 'filters',
+		type: 'collection',
+		placeholder: 'Add Filter',
+		default: {},
+		displayOptions: { show: { resource: ['product'], operation: ['getAll'] } },
+		options: [
+			{ displayName: 'Active', name: 'active', type: 'boolean', default: true, description: 'Whether to filter by the active flag' },
+			{ displayName: 'Category ID', name: 'category', type: 'string', default: '', description: 'ServiceCategory UUID to filter by' },
+			{ displayName: 'Low Stock', name: 'lowStock', type: 'boolean', default: false, description: 'Whether to only return products that track stock and are at or below their low-stock threshold' },
+			{ displayName: 'Search', name: 'search', type: 'string', default: '', description: 'Keyword matched against product name and SKU' },
+		],
+	},
+];

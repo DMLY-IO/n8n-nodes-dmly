@@ -1,12 +1,15 @@
 {
 	"name": "n8n-nodes-dmly",
-	"version": "0.1.3",
-	"description": "This is an n8n community node. It lets you use DMLY in your n8n workflows.",
+	"version": "1.0.0",
+	"description": "n8n community node for DMLY — WhatsApp-first messaging, CRM, appointments, invoicing, payments, broadcasts, automations, and signed-webhook triggers.",
 	"keywords": [
 		"dmly",
 		"whatsapp",
 		"messaging",
 		"crm",
+		"appointments",
+		"payments",
+		"automation",
 		"n8n-community-node-package"
 	],
 	"license": "MIT",
