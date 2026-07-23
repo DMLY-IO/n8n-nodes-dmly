@@ -1,54 +1,38 @@
 import type {
 	IDataObject,
 	IHookFunctions,
+	ILoadOptionsFunctions,
+	INodePropertyOptions,
 	INodeType,
 	INodeTypeDescription,
 	IWebhookFunctions,
 	IWebhookResponseData,
-	JsonObject,
 } from 'n8n-workflow';
-import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
+import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
+import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 
-import { dmlyApiRequest, getWebhookHeadersFromCollection } from '../Dmly/GenericFunctions';
+import { dmlyApiRequest } from '../Dmly/GenericFunctions';
 
-function isNotFoundError(error: unknown): boolean {
-	const errorObject = error as {
-		response?: {
-			status?: number;
-		};
-		httpCode?: string;
-	};
+const CHANNEL_SCOPE_OPTIONS = [
+	{ name: 'All Channels', value: 'all' },
+	{ name: 'WhatsApp', value: 'whatsapp' },
+	{ name: 'Facebook', value: 'facebook' },
+	{ name: 'Instagram', value: 'instagram' },
+	{ name: 'SMS', value: 'sms' },
+	{ name: 'TikTok', value: 'tiktok' },
+	{ name: 'Telegram', value: 'telegram' },
+];
 
-	if (errorObject.response?.status === 404) {
-		return true;
-	}
-
-	if (errorObject.httpCode === '404') {
-		return true;
-	}
-
-	return false;
+/** Read the singleton webhook subscription ({ endpoint, events, channel, status, has_secret }). */
+async function getSubscription(ctx: IHookFunctions): Promise<IDataObject> {
+	const response = (await dmlyApiRequest.call(ctx, 'GET', '/webhooks')) as IDataObject;
+	return ((response.data as IDataObject) ?? response) ?? {};
 }
 
-function extractWebhookId(responseData: IDataObject | IDataObject[]): string | undefined {
-	if (Array.isArray(responseData)) {
-		const firstItem = responseData[0] as IDataObject | undefined;
-		if (firstItem?.id) {
-			return String(firstItem.id);
-		}
-		return undefined;
-	}
-
-	if (responseData.id) {
-		return String(responseData.id);
-	}
-
-	const nestedData = responseData.data as IDataObject | undefined;
-	if (nestedData?.id) {
-		return String(nestedData.id);
-	}
-
-	return undefined;
+function sameEvents(a: unknown, b: string[]): boolean {
+	const left = Array.isArray(a) ? [...(a as string[])].sort() : [];
+	const right = [...b].sort();
+	return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 export class DmlyTrigger implements INodeType {
@@ -58,9 +42,8 @@ export class DmlyTrigger implements INodeType {
 		icon: 'file:dmly.svg',
 		group: ['trigger'],
 		version: 1,
-		subtitle:
-			'={{(() => { const events = $parameter["events"] || []; const labels = { contact_created: "contact created", contact_tag_added: "contact tag added", contact_tag_removed: "contact tag removed", incoming_instagram_message: "incoming Instagram message", incoming_messenger_message: "incoming Messenger message", incoming_telegram_message: "incoming Telegram message", incoming_website_message: "incoming Website message", incoming_whatsapp_message: "incoming WhatsApp message", outgoing_instagram_message: "outgoing Instagram message", outgoing_messenger_message: "outgoing Messenger message", outgoing_telegram_message: "outgoing Telegram message", outgoing_website_message: "outgoing Website message", outgoing_whatsapp_message: "outgoing WhatsApp message" }; if (!events.length) return "On DMLY event"; return "On " + events.map((event) => labels[event] || event).join(", "); })()}}',
-		description: 'Starts the workflow when DMLY sends webhook events.',
+		subtitle: '={{$parameter["events"] ? "On " + ($parameter["events"].length) + " event(s)" : "On DMLY event"}}',
+		description: 'Starts the workflow when DMLY sends a webhook event',
 		defaults: {
 			name: 'DMLY Trigger',
 		},
@@ -83,215 +66,181 @@ export class DmlyTrigger implements INodeType {
 		properties: [
 			{
 				displayName:
-					'This node automatically creates and manages a DMLY webhook when you activate or deactivate your workflow.',
+					'DMLY allows one webhook subscription per workspace. In <b>Automatic</b> mode this node takes over that subscription while the workflow is active. In <b>Manual</b> mode, point DMLY at this node\'s Production URL yourself (Salesbot → Integrations → Webhooks).',
 				name: 'notice',
 				type: 'notice',
 				default: '',
 			},
 			{
-				displayName: 'Name',
-				name: 'webhookName',
-				type: 'string',
-				default: 'n8n DMLY Webhook',
-				required: true,
-				description: 'The name used when creating the webhook in DMLY',
+				displayName: 'Registration Mode',
+				name: 'registrationMode',
+				type: 'options',
+				noDataExpression: true,
+				options: [
+					{
+						name: 'Automatic',
+						value: 'automatic',
+						description: 'Create and manage the DMLY webhook subscription automatically',
+					},
+					{
+						name: 'Manual',
+						value: 'manual',
+						description: "Only listen — you configure DMLY to call this node's URL yourself",
+					},
+				],
+				default: 'automatic',
 			},
 			{
-				displayName: 'Active',
-				name: 'active',
-				type: 'boolean',
-				default: true,
-				description: 'Whether the webhook should be active in DMLY',
-			},
-			{
-				displayName: 'Events',
+				displayName: 'Event Names or IDs',
 				name: 'events',
 				type: 'multiOptions',
 				required: true,
-				default: ['incoming_whatsapp_message'],
-				options: [
-					{
-						name: 'Contact Created',
-						value: 'contact_created',
-					},
-					{
-						name: 'Contact Tag Added',
-						value: 'contact_tag_added',
-					},
-					{
-						name: 'Contact Tag Removed',
-						value: 'contact_tag_removed',
-					},
-					{
-						name: 'Incoming Instagram Message',
-						value: 'incoming_instagram_message',
-					},
-					{
-						name: 'Incoming Messenger Message',
-						value: 'incoming_messenger_message',
-					},
-					{
-						name: 'Incoming Telegram Message',
-						value: 'incoming_telegram_message',
-					},
-					{
-						name: 'Incoming Website Message',
-						value: 'incoming_website_message',
-					},
-					{
-						name: 'Incoming WhatsApp Message',
-						value: 'incoming_whatsapp_message',
-					},
-					{
-						name: 'Outgoing Instagram Message',
-						value: 'outgoing_instagram_message',
-					},
-					{
-						name: 'Outgoing Messenger Message',
-						value: 'outgoing_messenger_message',
-					},
-					{
-						name: 'Outgoing Telegram Message',
-						value: 'outgoing_telegram_message',
-					},
-					{
-						name: 'Outgoing Website Message',
-						value: 'outgoing_website_message',
-					},
-					{
-						name: 'Outgoing WhatsApp Message',
-						value: 'outgoing_whatsapp_message',
-					},
-				],
-				description: 'The DMLY events that should trigger this workflow',
+				default: [],
+				description:
+					'The DMLY events to subscribe to. Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+				typeOptions: {
+					loadOptionsMethod: 'getEvents',
+				},
 			},
 			{
-				displayName: 'Webhook Headers',
-				name: 'webhookHeaders',
-				type: 'fixedCollection',
-				typeOptions: {
-					multipleValues: true,
-				},
-				default: {},
-				placeholder: 'Add Header',
-				description: 'Optional headers that DMLY should include in webhook requests',
-				options: [
-					{
-						name: 'header',
-						displayName: 'Header',
-						values: [
-							{
-								displayName: 'Key',
-								name: 'key',
-								type: 'string',
-								default: '',
-								description: 'The HTTP header name',
-							},
-							{
-								displayName: 'Value',
-								name: 'value',
-								type: 'string',
-								default: '',
-								description: 'The HTTP header value',
-							},
-						],
-					},
-				],
+				displayName: 'Channel Scope',
+				name: 'channelScope',
+				type: 'options',
+				options: CHANNEL_SCOPE_OPTIONS,
+				default: 'all',
+				description: 'Which channel message-lifecycle events are scoped to (ignored by non-message events)',
+				displayOptions: { show: { registrationMode: ['automatic'] } },
+			},
+			{
+				displayName: 'Verify Signature',
+				name: 'verifySignature',
+				type: 'boolean',
+				default: true,
+				description: 'Whether to reject deliveries whose HMAC-SHA256 signature does not match the signing secret',
+			},
+			{
+				displayName: 'Signing Secret',
+				name: 'signingSecret',
+				type: 'string',
+				typeOptions: { password: true },
+				default: '',
+				description:
+					'The whsec_ signing secret shown when you saved the webhook in DMLY. Required to verify signatures in Manual mode.',
+				displayOptions: { show: { registrationMode: ['manual'], verifySignature: [true] } },
 			},
 		],
+	};
+
+	methods = {
+		loadOptions: {
+			async getEvents(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+				const response = (await dmlyApiRequest.call(this, 'GET', '/webhooks/events')) as IDataObject;
+				const groups = (response.data as IDataObject[]) ?? [];
+				const options: INodePropertyOptions[] = [];
+
+				for (const group of groups) {
+					const groupName = (group.group as string) ?? '';
+					const topics = (group.topics as IDataObject) ?? {};
+					for (const [topic, label] of Object.entries(topics)) {
+						options.push({
+							name: `${label} (${topic})`,
+							value: topic,
+							description: groupName,
+						});
+					}
+				}
+
+				return options.sort((a, b) => a.name.localeCompare(b.name));
+			},
+		},
 	};
 
 	webhookMethods = {
 		default: {
 			async checkExists(this: IHookFunctions): Promise<boolean> {
-				const webhookData = this.getWorkflowStaticData('node');
-				const webhookUrl = this.getNodeWebhookUrl('default') as string;
+				if ((this.getNodeParameter('registrationMode') as string) === 'manual') {
+					return true;
+				}
 
-				if (webhookData.webhookId === undefined) {
+				// Without a locally stored secret we cannot verify deliveries — force create()
+				// to re-mint and re-register rather than silently 401-ing every event.
+				if (!this.getWorkflowStaticData('node').secret) {
 					return false;
 				}
 
-				try {
-					const responseData = await dmlyApiRequest.call(
-						this,
-						'GET',
-						`/v1/webhooks/${webhookData.webhookId as string}`,
-					);
-
-					if (!Array.isArray(responseData)) {
-						const serverUrl = responseData.serverUrl as string | undefined;
-						if (serverUrl && serverUrl !== webhookUrl) {
-							delete webhookData.webhookId;
-							return false;
-						}
-					}
-
-					return true;
-				} catch (error) {
-					if (isNotFoundError(error)) {
-						delete webhookData.webhookId;
-						return false;
-					}
-
-					throw error;
-				}
-			},
-			async create(this: IHookFunctions): Promise<boolean> {
 				const webhookUrl = this.getNodeWebhookUrl('default') as string;
+				const events = this.getNodeParameter('events') as string[];
+				const subscription = await getSubscription(this);
 
-				if (webhookUrl.includes('//localhost')) {
+				return subscription.endpoint === webhookUrl && sameEvents(subscription.events, events);
+			},
+
+			async create(this: IHookFunctions): Promise<boolean> {
+				if ((this.getNodeParameter('registrationMode') as string) === 'manual') {
+					return true;
+				}
+
+				const webhookUrl = this.getNodeWebhookUrl('default') as string;
+				if (!/^https:\/\//i.test(webhookUrl) || /\/\/(localhost|127\.0\.0\.1)/i.test(webhookUrl)) {
 					throw new NodeOperationError(
 						this.getNode(),
-						'The webhook can not work on localhost. Please use a public URL.',
+						`DMLY requires a public HTTPS webhook URL, but n8n is exposing "${webhookUrl}". Use a publicly reachable n8n instance (or a tunnel), or switch Registration Mode to Manual.`,
 					);
 				}
 
-				const body: IDataObject = {
-					name: this.getNodeParameter('webhookName') as string,
-					serverUrl: webhookUrl,
-					active: this.getNodeParameter('active') as boolean,
-					events: this.getNodeParameter('events') as string[],
-				};
+				const events = this.getNodeParameter('events') as string[];
+				if (!events.length) {
+					throw new NodeOperationError(this.getNode(), 'Select at least one event to subscribe to.');
+				}
+				const channel = this.getNodeParameter('channelScope', 'all') as string;
 
-				const headersData = this.getNodeParameter('webhookHeaders', {}) as IDataObject;
-				const webhookHeaders = getWebhookHeadersFromCollection(headersData);
-				if (webhookHeaders.length > 0) {
-					body.webhookHeaders = webhookHeaders as unknown as IDataObject;
+				const subscription = await getSubscription(this);
+				const existing = subscription.endpoint as string | undefined;
+				if (existing && existing !== webhookUrl) {
+					throw new NodeOperationError(
+						this.getNode(),
+						`This workspace's DMLY webhook is already pointing at "${existing}". DMLY allows only one webhook subscription per workspace — disable that consumer (or the dashboard webhook), or use Manual mode.`,
+					);
 				}
 
-				const responseData = await dmlyApiRequest.call(this, 'POST', '/v1/webhooks', body);
-				const webhookId = extractWebhookId(responseData);
-
-				if (!webhookId) {
-					throw new NodeApiError(this.getNode(), responseData as unknown as JsonObject, {
-						message: 'Webhook creation response did not contain an ID.',
-					});
+				const staticData = this.getWorkflowStaticData('node');
+				let secret = staticData.secret as string | undefined;
+				if (!secret) {
+					secret = `whsec_${randomBytes(24).toString('hex')}`;
+					staticData.secret = secret;
 				}
 
-				const webhookData = this.getWorkflowStaticData('node');
-				webhookData.webhookId = webhookId;
+				await dmlyApiRequest.call(this, 'PUT', '/webhooks', {
+					url: webhookUrl,
+					events,
+					channel,
+					secret,
+				});
 
 				return true;
 			},
+
 			async delete(this: IHookFunctions): Promise<boolean> {
-				const webhookData = this.getWorkflowStaticData('node');
+				const staticData = this.getWorkflowStaticData('node');
 
-				if (webhookData.webhookId !== undefined) {
-					try {
-						await dmlyApiRequest.call(
-							this,
-							'DELETE',
-							`/v1/webhooks/${webhookData.webhookId as string}`,
-						);
-					} catch (error) {
-						if (!isNotFoundError(error)) {
-							return false;
-						}
-					}
-
-					delete webhookData.webhookId;
+				if ((this.getNodeParameter('registrationMode') as string) === 'manual') {
+					delete staticData.secret;
+					return true;
 				}
 
+				const webhookUrl = this.getNodeWebhookUrl('default') as string;
+				try {
+					const subscription = await getSubscription(this);
+					if (subscription.endpoint === webhookUrl) {
+						await dmlyApiRequest.call(this, 'DELETE', '/webhooks');
+					}
+					// We either removed our own subscription or a different endpoint now owns it;
+					// in both cases the stored secret is no longer needed.
+					delete staticData.secret;
+				} catch {
+					// API unreachable — keep the secret so a later re-activation can still verify
+					// the subscription that is presumably still registered.
+				}
 				return true;
 			},
 		},
@@ -299,15 +248,60 @@ export class DmlyTrigger implements INodeType {
 
 	async webhook(this: IWebhookFunctions): Promise<IWebhookResponseData> {
 		const body = this.getBodyData();
+		const headers = this.getHeaderData() as IDataObject;
+		const response = this.getResponseObject();
 
-		const payload: IDataObject = {
-			body,
-			headers: this.getHeaderData(),
-			query: this.getQueryData(),
-		};
+		if (this.getNodeParameter('verifySignature', true) as boolean) {
+			const mode = this.getNodeParameter('registrationMode') as string;
+			const secret =
+				mode === 'manual'
+					? (this.getNodeParameter('signingSecret', '') as string)
+					: ((this.getWorkflowStaticData('node').secret as string) ?? '');
+
+			if (!secret) {
+				response.status(401).send('Signature verification is enabled but no signing secret is available.');
+				return { noWebhookResponse: true };
+			}
+
+			const request = this.getRequestObject();
+			if (!request.rawBody && typeof request.readRawBody === 'function') {
+				await request.readRawBody();
+			}
+			// DMLY signs the exact bytes it sent (json_encode with unescaped slashes/unicode
+			// and a fixed key order), so we must HMAC the raw body — never a re-serialized copy.
+			// If the raw body is unavailable, fail closed rather than reject every delivery.
+			if (!request.rawBody) {
+				response
+					.status(401)
+					.send('Cannot verify signature: the raw request body is unavailable. Disable "Verify Signature" or upgrade n8n.');
+				return { noWebhookResponse: true };
+			}
+
+			const expected = `sha256=${createHmac('sha256', secret).update(request.rawBody).digest('hex')}`;
+			const receivedBuffer = Buffer.from((headers['x-salesbot-signature'] as string) ?? '');
+			const expectedBuffer = Buffer.from(expected);
+
+			const valid =
+				receivedBuffer.length === expectedBuffer.length &&
+				timingSafeEqual(receivedBuffer, expectedBuffer);
+
+			if (!valid) {
+				response.status(401).send('Invalid signature');
+				return { noWebhookResponse: true };
+			}
+		}
+
+		// The subscription delivers every subscribed topic to one URL; make sure this
+		// execution only fires for the events selected on this node (matters most in Manual mode).
+		const selected = (this.getNodeParameter('events', []) as string[]) ?? [];
+		const event = (headers['x-salesbot-event'] as string) ?? ((body as IDataObject).event as string) ?? '';
+		if (selected.length && event && !selected.includes(event)) {
+			response.status(200).send('ignored');
+			return { noWebhookResponse: true };
+		}
 
 		return {
-			workflowData: [this.helpers.returnJsonArray([payload])],
+			workflowData: [this.helpers.returnJsonArray([body as IDataObject])],
 		};
 	}
 }

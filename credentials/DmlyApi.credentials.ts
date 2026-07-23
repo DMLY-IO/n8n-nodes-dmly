@@ -8,16 +8,17 @@ import {
 export class DmlyApi implements ICredentialType {
 	name = 'dmlyApi';
 	displayName = 'DMLY API';
-	documentationUrl = 'https://help.dmly.io/en/collections/22-rest-api-reference';
+	documentationUrl = 'https://docs.dmly.io/api-reference/introduction';
 	properties: INodeProperties[] = [
 		{
 			displayName: 'Base URL',
 			name: 'baseUrl',
 			type: 'string',
-			default: 'https://api.dmly.io/rest',
-			placeholder: 'https://api.dmly.io/rest',
+			default: 'https://dash.dmly.io/api/v1',
+			placeholder: 'https://dash.dmly.io/api/v1',
 			required: true,
-			description: 'The base URL of the DMLY API. Example: <code>https://api.dmly.io/rest</code>.',
+			description:
+				'Base URL of the DMLY REST API, ending in <code>/api/v1</code>. Change this only for a self-hosted, agency, or white-label instance (e.g. <code>https://your-domain.com/api/v1</code>).',
 		},
 		{
 			displayName: 'API Key',
@@ -28,7 +29,8 @@ export class DmlyApi implements ICredentialType {
 			},
 			default: '',
 			required: true,
-			description: 'The API key from DMLY Integrations → REST API.',
+			description:
+				'A workspace API key (starts with <code>dmly_</code>). Generate one in DMLY under Salesbot → Integrations → the "API" tile. The key is scoped to a single workspace.',
 		},
 	];
 
@@ -44,7 +46,7 @@ export class DmlyApi implements ICredentialType {
 	test: ICredentialTestRequest = {
 		request: {
 			baseURL: '={{$credentials.baseUrl}}',
-			url: '/v1/account-info',
+			url: '/account',
 			headers: {
 				Accept: 'application/json',
 			},

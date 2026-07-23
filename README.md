@@ -1,265 +1,91 @@
 # n8n-nodes-dmly
 
-This is an n8n community node that lets you integrate [DMLY](https://dmly.io) with your n8n workflows.
+This is an n8n community node. It lets you use [DMLY](https://dmly.io) in your n8n workflows.
 
-[DMLY](https://dmly.io) is an AI-powered business messaging platform for WhatsApp, Messenger, Instagram, Telegram, and website chat.
+DMLY is a WhatsApp-first customer communication and business platform — messaging across WhatsApp, Instagram, Messenger, Telegram, SMS and Live Chat, plus a CRM, appointments and classes, an offerings catalogue, invoicing and payments, broadcasts and automations.
 
-[n8n](https://n8n.io/) is a workflow automation platform.
+This node talks to DMLY's public REST API (`/api/v1`) and its signed webhooks.
+
+[Installation](#installation) · [Credentials](#credentials) · [Operations](#operations) · [Trigger](#trigger) · [Upgrading from 0.x](#upgrading-from-0x) · [Resources](#resources)
 
 ## Installation
 
-### Automatic - from n8n UI (recommended)
+Follow the [community nodes installation guide](https://docs.n8n.io/integrations/community-nodes/installation/).
 
-1. Go to **Settings** -> **Community Nodes** in your n8n instance.
-2. Click **Install**.
-3. Enter `n8n-nodes-dmly` as the package name.
-4. Click **Install**.
+In n8n go to **Settings → Community Nodes → Install** and enter `n8n-nodes-dmly`.
 
-### Manual - command line
+## Credentials
 
-Install in your custom nodes folder:
+1. In DMLY, open **Salesbot → Integrations** and click the **API** tile, then **Generate** a key (or run `php artisan dmly:api-key create` on the server). Copy the `dmly_…` key — it is shown only once. Each key is scoped to a single workspace.
+2. In n8n create **DMLY API** credentials:
+   - **Base URL** — defaults to `https://dash.dmly.io/api/v1`. Change it only for a self-hosted / agency / white-label instance (it must end in `/api/v1`).
+   - **API Key** — the `dmly_…` key.
+3. Click **Test** — it calls `GET /account` to confirm the key works.
 
-```bash
-mkdir -p ~/.n8n/custom
-cd ~/.n8n/custom
-npm init -y
-npm install n8n-nodes-dmly
-```
+## Operations
 
-Restart n8n after installation.
+The **DMLY** node covers the following resources. All list operations support **Return All** (auto-pagination) or a **Limit**, plus filters.
 
-## Included nodes
+| Resource | Operations |
+| --- | --- |
+| **Account** | Get |
+| **Contact** | Get Many, Get, Create, Update, Delete, Add Tags, Remove Tags, Add Note, Set Pipeline Stage, Set Lifecycle Stage |
+| **Tag** | Get Many, Get, Create, Update, Delete |
+| **Segment** | Get Many, Get, Create, Update, Delete, Get Contacts |
+| **Channel** | Get Many, Get *(read-only)* |
+| **Conversation** | Get Many, Get Messages |
+| **Message** | Send *(text / image / video / audio / file / WhatsApp template)* |
+| **Broadcast** | Get Many, Get, Create, Update, Delete, Approve, Send, Get Recipients |
+| **Automation** | Get Many, Get, Activate, Pause |
+| **Appointment** | Get Many, Get, Book, Reschedule, Cancel, Update Status, Get Slots |
+| **Service** | Get Many, Get, Create, Update, Delete |
+| **Service Category** | Get Many, Get, Create, Update, Delete |
+| **Staff** | Get Many, Get, Create, Update, Delete, Get Availability |
+| **Time Off** | Add, Delete |
+| **Class Session** | Get Many, Get, Create, Update, Delete |
+| **Class Participant** | Get Many, Book, Cancel |
+| **Product** | Get Many, Get, Create, Update, Delete |
+| **Plan** | Get Many, Get, Create, Update, Delete |
+| **Invoice** | Get Many, Get, Create, Send, Record Payment, Void |
+| **Order** | Get Many, Get, Create, Confirm, Cancel |
+| **Payment** | Get Many, Get, Create, Refund |
+| **Coupon** | Get Many, Get, Create, Update, Delete |
+| **Subscription** | Get Many, Get, Create, Change Plan, Pause, Resume, Cancel |
+| **Media** | Get Many, Get, Upload, Delete |
 
-- **DMLY** (action node)
-- **DMLY Trigger** (trigger node)
+IDs are the public UUIDs returned by the API.
 
-## Supported resources and operations
+## Trigger
 
-### Account
-- Get Info
+The **DMLY Trigger** node starts a workflow when DMLY sends a webhook. Pick one or more events (loaded live from your workspace) such as `contact.created`, `message.received`, `booking.created`, `invoice.paid`, `order.paid`, `payment.succeeded`, `subscription.renewed` and many more.
 
-### Contacts
-- Create
-- Get
-- Get Many
-- Update
-- Delete
-- Add Tags
-- Remove Tags
-- Assign Chat
+DMLY allows **one webhook subscription per workspace**, so the trigger offers two registration modes:
 
-### Contact Tags
-- Create
-- Get
-- Get Many
-- Delete
+- **Automatic** (default) — while the workflow is active, the node registers its own URL, subscribed events and a signing secret with DMLY, and removes them when you deactivate. If another consumer (or the dashboard webhook) already owns the workspace's subscription, the node tells you instead of clobbering it. Requires n8n to be reachable at a **public HTTPS URL** (DMLY rejects private/localhost hosts).
+- **Manual** — the node only listens; you point DMLY at the node's Production URL yourself (**Salesbot → Integrations → Webhooks**) and paste the `whsec_` signing secret into the node. Use this when the dashboard should own the webhook, when fanning one endpoint out to several workflows, or for local development behind a tunnel.
 
-### Staff
-- Get
-- Get Many
+Every delivery is verified against its `X-Salesbot-Signature` (HMAC-SHA256) and, in Manual mode, filtered to the events you selected. Turn verification off only for testing.
 
-### Workspaces
-- Get
-- Get Many
+## Upgrading from 0.x
 
-### Segments
-- Create
-- Get
-- Get Many
-- Delete
+Version **1.0.0 is a full rewrite** for the current DMLY app and is **not backward compatible** with 0.x workflows, which targeted a retired backend:
 
-### Broadcasts
-- Create
-- Get
-- Get Many
-- Update
-- Delete
-- Get Logs
+- New base URL (`…/api/v1`) and API key format (`dmly_…`, minted under Integrations → API).
+- Keys are workspace-scoped — the old `Workspace` resource and per-request `workspaceId` are gone.
+- Sending is now a single **Message → Send** operation (not per-channel endpoints).
+- Webhooks are a single per-workspace subscription; the trigger manages it automatically.
 
-### Webhooks
-- Create
-- Get
-- Get Many
-- Update
-- Delete
+After upgrading, re-create your DMLY credentials with a new key and rebuild affected nodes.
 
-### WhatsApp Templates
-- Create
-- Get
-- Get Many
+## Resources
 
-### Messages
-- Get by Contact
-- Send (multi-channel)
+- [DMLY API reference](https://docs.dmly.io/api-reference/introduction)
+- [n8n community nodes documentation](https://docs.n8n.io/integrations/#community-nodes)
 
-Message send coverage includes:
+## Version history
 
-- WhatsApp: text, media, template, catalog, product, product list, interactive list, interactive buttons, interactive CTA URL
-- Telegram: text, media, template
-- Instagram: text, media, template
-- Messenger: text, media, template
-- Website chat: text, media, template
-
-## Trigger events
-
-The **DMLY Trigger** node auto-registers a webhook in DMLY and supports:
-
-- Incoming/Outgoing WhatsApp messages
-- Incoming/Outgoing Instagram messages
-- Incoming/Outgoing Messenger messages
-- Incoming/Outgoing Telegram messages
-- Incoming/Outgoing website messages
-- Contact created
-- Contact tag added
-- Contact tag removed
-
-## Credentials setup
-
-Create **DMLY API** credentials in n8n:
-
-- **Base URL**: `https://api.dmly.io/rest`
-- **API Key**: your DMLY REST API key
-
-You can generate API keys in DMLY under:
-
-- **Integrations -> REST API**
-
-## Notes
-
-- For complex operations, the node exposes a **Payload (JSON)** field so you can pass full API body objects.
-- For WhatsApp send operations, the node normalizes both `recipient` and `recepient` key variants for compatibility.
-
-## Quick payload examples
-
-Use these in the corresponding **Payload (JSON)** fields in the DMLY node.
-
-### Contact -> Create (`contactPayload`)
-
-```json
-{
-  "name": "John Doe",
-  "phoneNumber": "+15551234567",
-  "notes": "Created from n8n",
-  "tags": ["Lead", "VIP"],
-  "workspace": {
-    "id": "YOUR_WORKSPACE_ID"
-  }
-}
-```
-
-### Segment -> Create (`segmentPayload`)
-
-```json
-{
-  "name": "VIP Leads",
-  "type": "contact",
-  "criteria": {
-    "workspaces": [
-      {
-        "id": "YOUR_WORKSPACE_ID"
-      }
-    ],
-    "tags": ["VIP"],
-    "exclusionTags": ["unsubscribe"],
-    "contactStage": "Lead"
-  },
-  "workspace": {
-    "id": "YOUR_WORKSPACE_ID"
-  }
-}
-```
-
-### Broadcast -> Create (`broadcastPayload`)
-
-```json
-{
-  "name": "Promo Broadcast",
-  "type": "contact",
-  "segments": [
-    {
-      "id": "YOUR_SEGMENT_ID"
-    }
-  ],
-  "template": {
-    "name": "your_template_name",
-    "language": "en"
-  },
-  "bodyTextParameters": ["{{contact.name}}"],
-  "workspace": {
-    "id": "YOUR_WORKSPACE_ID"
-  }
-}
-```
-
-### Message -> WhatsApp Text (`messagePayload`)
-
-```json
-{
-  "contact": {
-    "id": "YOUR_CONTACT_ID"
-  },
-  "workspace": {
-    "id": "YOUR_WORKSPACE_ID"
-  },
-  "textMessage": "Hello from n8n"
-}
-```
-
-### Message -> WhatsApp Template to phone (`messagePayload`)
-
-```json
-{
-  "recipient": {
-    "phoneNumber": "+15551234567",
-    "name": "John Doe"
-  },
-  "workspace": {
-    "id": "YOUR_WORKSPACE_ID"
-  },
-  "template": {
-    "name": "your_template_name",
-    "language": "en"
-  },
-  "bodyTextParameters": ["John Doe"],
-  "buttonUrlParameters": []
-}
-```
-
-### WhatsApp Template -> Create (`whatsappTemplatePayload`)
-
-```json
-{
-  "template": {
-    "category": "UTILITY",
-    "language": "en",
-    "name": "order_update_template",
-    "components": [
-      {
-        "type": "BODY",
-        "text": "Hello {{1}}, your order {{2}} is ready."
-      }
-    ]
-  },
-  "workspace": {
-    "id": "YOUR_WORKSPACE_ID"
-  }
-}
-```
-
-## Development
-
-```bash
-npm install
-npm run build
-npm run lint
-```
-
-## API and docs
-
-- REST API collection: https://help.dmly.io/en/collections/22-rest-api-reference
-- Webhooks guide: https://help.dmly.io/en/articles/89-webhooks-all-you-need-to-know
-- Support: https://help.dmly.io
+- **1.0.0** — Rewritten for the DMLY `/api/v1` REST API: 24 resources, ~120 operations, and a signed-webhook trigger with automatic subscription management.
 
 ## License
 
-MIT
+[MIT](LICENSE.md)
