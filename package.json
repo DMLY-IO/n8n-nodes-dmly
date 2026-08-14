@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-dmly",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "n8n community node for DMLY — WhatsApp-first messaging, CRM, appointments, invoicing, payments, broadcasts, automations, and signed-webhook triggers.",
 	"keywords": [
 		"dmly",
