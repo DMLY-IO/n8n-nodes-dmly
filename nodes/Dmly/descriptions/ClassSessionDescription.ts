@@ -6,6 +6,18 @@ const STATUS_OPTIONS = [
 	{ name: 'Completed', value: 'completed' },
 ];
 
+const FREQUENCY_OPTIONS = [
+	{ name: 'Daily', value: 'daily' },
+	{ name: 'Weekly', value: 'weekly' },
+	{ name: 'Every Two Weeks', value: 'biweekly' },
+	{ name: 'Monthly', value: 'monthly' },
+];
+
+const SCOPE_OPTIONS = [
+	{ name: 'This Occurrence Only', value: 'this' },
+	{ name: 'This and Later Occurrences', value: 'series' },
+];
+
 export const classSessionOperations: INodeProperties[] = [
 	{
 		displayName: 'Operation',
@@ -65,13 +77,24 @@ export const classSessionFields: INodeProperties[] = [
 			{ displayName: 'Capacity', name: 'capacity', type: 'number', default: 0, description: 'Seat capacity (1–100000); defaults to the Service capacity' },
 			{ displayName: 'Ends At', name: 'endsAt', type: 'dateTime', default: '', description: 'Session end date/time (must be after starts_at); derived from Service duration when omitted' },
 			{ displayName: 'Location', name: 'location', type: 'string', default: '', description: 'Location label (max 255 chars)' },
+			{ displayName: 'Repeat Count', name: 'repeatCount', type: 'number', typeOptions: { minValue: 2, maxValue: 52 }, default: 4, description: 'Number of occurrences (2–52). Only used when Repeat Frequency is set.' },
+			{ displayName: 'Repeat Frequency', name: 'frequency', type: 'options', options: FREQUENCY_OPTIONS, default: 'weekly', description: 'Create a whole recurring class instead of one session. Occurrences keep the same local time across daylight-saving changes.' },
 			{ displayName: 'Staff ID', name: 'staffId', type: 'string', default: '', description: 'Optional host staff member uuid' },
 			{ displayName: 'Timezone', name: 'timezone', type: 'string', default: '', description: 'IANA timezone (max 64 chars); defaults to the Service host timezone or UTC' },
 			{ displayName: 'Waitlist Enabled', name: 'waitlistEnabled', type: 'boolean', default: false, description: 'Whether a waitlist is enabled; defaults to the Service setting' },
 		],
 	},
 
-	// ---- update ----
+	// ---- update / delete ----
+	{
+		displayName: 'Apply To',
+		name: 'scope',
+		type: 'options',
+		options: SCOPE_OPTIONS,
+		default: 'this',
+		description: 'For a recurring class, whether to change only this occurrence or this and every later one (earlier occurrences are never touched; times cannot be edited as a series)',
+		displayOptions: { show: { resource: ['classSession'], operation: ['delete', 'update'] } },
+	},
 	{
 		displayName: 'Update Fields',
 		name: 'updateFields',
@@ -118,6 +141,7 @@ export const classSessionFields: INodeProperties[] = [
 		displayOptions: { show: { resource: ['classSession'], operation: ['getAll'] } },
 		options: [
 			{ displayName: 'From', name: 'from', type: 'dateTime', default: '', description: 'Only sessions starting at or after this date/time' },
+			{ displayName: 'Recurrence ID', name: 'recurrence', type: 'string', default: '', description: 'Only occurrences of one recurring class (the recurrence_id returned on each session)' },
 			{ displayName: 'Service ID', name: 'service', type: 'string', default: '', description: 'Filter to sessions of a single Service (its uuid)' },
 			{ displayName: 'Staff ID', name: 'staff', type: 'string', default: '', description: 'Filter to sessions hosted by a single staff member (its uuid)' },
 			{ displayName: 'Status', name: 'status', type: 'options', options: STATUS_OPTIONS, default: 'scheduled', description: 'Filter by session status' },

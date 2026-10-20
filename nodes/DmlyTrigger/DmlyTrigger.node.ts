@@ -23,6 +23,18 @@ const CHANNEL_SCOPE_OPTIONS = [
 	{ name: 'Telegram', value: 'telegram' },
 ];
 
+const SEEN_DELIVERIES_LIMIT = 200;
+
+/**
+ * Read a DMLY delivery header. DMLY sends X-Dmly-Signature / -Event / -Delivery;
+ * the X-Salesbot-* twins are a deprecated transitional copy that will be turned
+ * off, so the X-Dmly-* name always wins. n8n lowercases incoming header names.
+ */
+function dmlyHeader(headers: IDataObject, name: 'signature' | 'event' | 'delivery'): string | undefined {
+	const value = headers[`x-dmly-${name}`] ?? headers[`x-salesbot-${name}`];
+	return typeof value === 'string' && value !== '' ? value : undefined;
+}
+
 /** Read the singleton webhook subscription ({ endpoint, events, channel, status, has_secret }). */
 async function getSubscription(ctx: IHookFunctions): Promise<IDataObject> {
 	const response = (await dmlyApiRequest.call(ctx, 'GET', '/webhooks')) as IDataObject;
@@ -278,7 +290,7 @@ export class DmlyTrigger implements INodeType {
 			}
 
 			const expected = `sha256=${createHmac('sha256', secret).update(request.rawBody).digest('hex')}`;
-			const receivedBuffer = Buffer.from((headers['x-salesbot-signature'] as string) ?? '');
+			const receivedBuffer = Buffer.from(dmlyHeader(headers, 'signature') ?? '');
 			const expectedBuffer = Buffer.from(expected);
 
 			const valid =
@@ -291,10 +303,22 @@ export class DmlyTrigger implements INodeType {
 			}
 		}
 
+		// Retries reuse the same delivery id; skip ones this node has already accepted.
+		const deliveryId = dmlyHeader(headers, 'delivery');
+		if (deliveryId) {
+			const staticData = this.getWorkflowStaticData('node');
+			const seen = (staticData.seenDeliveries as string[] | undefined) ?? [];
+			if (seen.includes(deliveryId)) {
+				response.status(200).send('duplicate');
+				return { noWebhookResponse: true };
+			}
+			staticData.seenDeliveries = [...seen, deliveryId].slice(-SEEN_DELIVERIES_LIMIT);
+		}
+
 		// The subscription delivers every subscribed topic to one URL; make sure this
 		// execution only fires for the events selected on this node (matters most in Manual mode).
 		const selected = (this.getNodeParameter('events', []) as string[]) ?? [];
-		const event = (headers['x-salesbot-event'] as string) ?? ((body as IDataObject).event as string) ?? '';
+		const event = dmlyHeader(headers, 'event') ?? ((body as IDataObject).event as string) ?? '';
 		if (selected.length && event && !selected.includes(event)) {
 			response.status(200).send('ignored');
 			return { noWebhookResponse: true };

@@ -16,6 +16,7 @@ export async function handlePayment(
 		const qs: IDataObject = {};
 		if (filters.status) qs.status = filters.status;
 		if (filters.contact) qs.contact = filters.contact;
+		if (filters.externalReference) qs.external_reference = filters.externalReference;
 		if (filters.from) qs.from = filters.from;
 		if (filters.to) qs.to = filters.to;
 
@@ -41,7 +42,24 @@ export async function handlePayment(
 		if (fields.paymentMethod) body.payment_method = fields.paymentMethod;
 		if (fields.reference) body.reference = fields.reference;
 		if (fields.description) body.description = fields.description;
+		if (fields.externalReference) body.external_reference = fields.externalReference;
 		return dmlyApiRequest.call(ctx, 'POST', '/payments', body);
+	}
+
+	if (operation === 'createLink') {
+		const body: IDataObject = {
+			contact_id: ctx.getNodeParameter('contactId', i) as string,
+			amount: ctx.getNodeParameter('amount', i) as number,
+			// The gateway allowlist check is case-sensitive, so "ngn" would 422.
+			currency: (ctx.getNodeParameter('currency', i) as string).trim().toUpperCase(),
+		};
+		const fields = ctx.getNodeParameter('linkFields', i, {}) as IDataObject;
+		if (fields.provider) body.provider = fields.provider;
+		if (fields.description) body.description = fields.description;
+		if (fields.externalReference) body.external_reference = fields.externalReference;
+		if (fields.channels) body.channels = fields.channels;
+		if (fields.returnUrl) body.return_url = fields.returnUrl;
+		return dmlyApiRequest.call(ctx, 'POST', '/payment-links', body);
 	}
 
 	if (operation === 'refund') {

@@ -29,6 +29,7 @@ export async function handleClassSession(
 		if (filters.service) qs.service = filters.service;
 		if (filters.staff) qs.staff = filters.staff;
 		if (filters.status) qs.status = filters.status;
+		if (filters.recurrence) qs.recurrence = filters.recurrence;
 		if (filters.from) qs.from = filters.from;
 		if (filters.to) qs.to = filters.to;
 
@@ -49,7 +50,18 @@ export async function handleClassSession(
 			service_id: ctx.getNodeParameter('serviceId', i) as string,
 			starts_at: ctx.getNodeParameter('startsAt', i) as string,
 		};
-		applyClassSessionFields(body, ctx.getNodeParameter('additionalFields', i, {}) as IDataObject);
+		const fields = ctx.getNodeParameter('additionalFields', i, {}) as IDataObject;
+		applyClassSessionFields(body, fields);
+		if (fields.repeatCount !== undefined && !fields.frequency) {
+			throw new NodeOperationError(node, 'Set Repeat Frequency to create a recurring class; Repeat Count alone does nothing.', {
+				itemIndex: i,
+			});
+		}
+		if (fields.frequency) {
+			body.repeat = true;
+			body.frequency = fields.frequency;
+			body.repeat_count = (fields.repeatCount as number | undefined) ?? 4;
+		}
 		return dmlyApiRequest.call(ctx, 'POST', '/classes', body);
 	}
 
@@ -57,12 +69,15 @@ export async function handleClassSession(
 		const id = ctx.getNodeParameter('classSessionId', i) as string;
 		const body: IDataObject = {};
 		applyClassSessionFields(body, ctx.getNodeParameter('updateFields', i, {}) as IDataObject);
+		if ((ctx.getNodeParameter('scope', i, 'this') as string) === 'series') body.scope = 'series';
 		return dmlyApiRequest.call(ctx, 'PUT', `/classes/${id}`, body);
 	}
 
 	if (operation === 'delete') {
 		const id = ctx.getNodeParameter('classSessionId', i) as string;
-		return dmlyApiRequest.call(ctx, 'DELETE', `/classes/${id}`);
+		const body: IDataObject = {};
+		if ((ctx.getNodeParameter('scope', i, 'this') as string) === 'series') body.scope = 'series';
+		return dmlyApiRequest.call(ctx, 'DELETE', `/classes/${id}`, body);
 	}
 
 	throw new NodeOperationError(node, `Unknown operation "${operation}" for resource "classSession".`, {

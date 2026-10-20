@@ -1,7 +1,7 @@
 import type { IDataObject, IExecuteFunctions } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
 
-import { dmlyApiRequest, parseJson } from '../GenericFunctions';
+import { dmlyApiRequest, parseJson, parseJsonObject } from '../GenericFunctions';
 
 export async function handleMessage(
 	ctx: IExecuteFunctions,
@@ -22,6 +22,12 @@ export async function handleMessage(
 		if (additionalFields.media) {
 			const media = parseJson(node, additionalFields.media, i, 'Media');
 			if (media !== undefined) body.media = media;
+		}
+		if (additionalFields.header) {
+			const header = parseJsonObject(node, additionalFields.header, i, 'Header');
+			if (header && typeof header === 'object' && !Array.isArray(header) && Object.keys(header).length) {
+				body.header = header;
+			}
 		}
 		if (additionalFields.parameters) {
 			const parameters = parseJson(node, additionalFields.parameters, i, 'Parameters');

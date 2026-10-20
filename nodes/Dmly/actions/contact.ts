@@ -1,7 +1,14 @@
 import type { IDataObject, IExecuteFunctions, IHttpRequestMethods, INode } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
 
-import { dmlyApiRequest, dmlyApiRequestAllItems, parseCsv, parseJsonObject } from '../GenericFunctions';
+import {
+	BINARY_RESULT,
+	dmlyApiDownload,
+	dmlyApiRequest,
+	dmlyApiRequestAllItems,
+	parseCsv,
+	parseJsonObject,
+} from '../GenericFunctions';
 
 function applyContactFields(node: INode, body: IDataObject, fields: IDataObject, itemIndex: number): void {
 	if (fields.name) body.name = fields.name;
@@ -14,6 +21,11 @@ function applyContactFields(node: INode, body: IDataObject, fields: IDataObject,
 	if (fields.tags) body.tags = parseCsv(fields.tags as string);
 	if (fields.customFields) {
 		body.custom_fields = parseJsonObject(node, fields.customFields, itemIndex, 'Custom Fields');
+	}
+	if (fields.consent === true) {
+		body.consent = true;
+		if (fields.consentText) body.consent_text = fields.consentText;
+		if (fields.consentPageUrl) body.consent_page_url = fields.consentPageUrl;
 	}
 }
 
@@ -66,6 +78,15 @@ export async function handleContact(
 	if (operation === 'delete') {
 		const id = ctx.getNodeParameter('contactId', i) as string;
 		return dmlyApiRequest.call(ctx, 'DELETE', `/contacts/${id}`);
+	}
+
+	if (operation === 'dataExport') {
+		const id = ctx.getNodeParameter('contactId', i) as string;
+		const property = ctx.getNodeParameter('binaryPropertyName', i) as string;
+		const file = await dmlyApiDownload.call(ctx, `/contacts/${id}/data-export`);
+		const fileName = file.fileName ?? `contact-${id}-data-export.zip`;
+		const binary = await ctx.helpers.prepareBinaryData(file.data, fileName, file.mimeType ?? 'application/zip');
+		return { contactId: id, fileName, [BINARY_RESULT]: { [property]: binary } };
 	}
 
 	if (operation === 'addTags' || operation === 'removeTags') {
