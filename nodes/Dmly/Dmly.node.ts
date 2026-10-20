@@ -7,8 +7,9 @@ import type {
 	INodePropertyOptions,
 	INodeType,
 	INodeTypeDescription,
+	JsonObject,
 } from 'n8n-workflow';
-import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
+import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
 import { BINARY_RESULT, dmlyApiRequestAllItems, normalizeDmlyResponse } from './GenericFunctions';
 
@@ -104,6 +105,7 @@ export class Dmly implements INodeType {
 		name: 'dmly',
 		icon: 'file:dmly.svg',
 		group: ['transform'],
+		usableAsTool: true,
 		version: 1,
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
 		description: 'Interact with the DMLY REST API',
@@ -248,7 +250,13 @@ export class Dmly implements INodeType {
 					returnData.push({ json: { error: (error as Error).message }, pairedItem: { item: i } });
 					continue;
 				}
-				throw error;
+				// Both constructors hand back an existing error of their own type unchanged,
+				// so an API failure keeps its HTTP status; anything else is wrapped with the
+				// failing item's index.
+				if (error instanceof NodeApiError) {
+					throw new NodeApiError(this.getNode(), error as unknown as JsonObject, { itemIndex: i });
+				}
+				throw new NodeOperationError(this.getNode(), error as Error, { itemIndex: i });
 			}
 		}
 

@@ -78,7 +78,7 @@ export class DmlyTrigger implements INodeType {
 		properties: [
 			{
 				displayName:
-					'DMLY allows one webhook subscription per workspace. In <b>Automatic</b> mode this node takes over that subscription while the workflow is active. In <b>Manual</b> mode, point DMLY at this node\'s Production URL yourself (Salesbot → Integrations → Webhooks).',
+					'DMLY allows one webhook subscription per workspace. In <b>Automatic</b> mode this node takes over that subscription while the workflow is active. In <b>Manual</b> mode, point DMLY at this node\'s Production URL yourself (Integrations → Webhooks in the DMLY sidebar).',
 				name: 'notice',
 				type: 'notice',
 				default: '',
@@ -249,9 +249,12 @@ export class DmlyTrigger implements INodeType {
 					// We either removed our own subscription or a different endpoint now owns it;
 					// in both cases the stored secret is no longer needed.
 					delete staticData.secret;
-				} catch {
-					// API unreachable — keep the secret so a later re-activation can still verify
+				} catch (error) {
+					// API unreachable: keep the secret so a later re-activation can still verify
 					// the subscription that is presumably still registered.
+					this.logger.warn('DMLY Trigger: could not remove the webhook subscription on deactivate', {
+						error: (error as Error).message,
+					});
 				}
 				return true;
 			},

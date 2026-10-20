@@ -27,6 +27,17 @@ const DEFAULT_BASE_URL = 'https://dash.dmly.io/api/v1';
 export const BINARY_RESULT = '__dmlyBinary';
 
 /**
+ * Resolve an endpoint against the credential's Base URL. The API key itself is
+ * applied by httpRequestWithAuthentication from the credential's `authenticate`
+ * block, so these helpers never read or set it by hand.
+ */
+async function dmlyUrl(ctx: DmlyRequestContext, endpoint: string): Promise<string> {
+	const credentials = await ctx.getCredentials('dmlyApi');
+	const baseUrl = ((credentials.baseUrl as string) || DEFAULT_BASE_URL).replace(/\/+$/, '');
+	return `${baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+}
+
+/**
  * Make a single authenticated request to the DMLY REST API (/api/v1).
  * The workspace is selected by the API key, so no workspace id is ever sent.
  */
@@ -37,17 +48,10 @@ export async function dmlyApiRequest(
 	body: IDataObject = {},
 	qs: IDataObject = {},
 ): Promise<IDataObject | IDataObject[]> {
-	const credentials = await this.getCredentials('dmlyApi');
-	const baseUrl = ((credentials.baseUrl as string) || DEFAULT_BASE_URL).replace(/\/+$/, '');
-	const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-
 	const options: IHttpRequestOptions = {
 		method,
-		url: `${baseUrl}${path}`,
-		headers: {
-			Accept: 'application/json',
-			'x-api-key': credentials.apiKey as string,
-		},
+		url: await dmlyUrl(this, endpoint),
+		headers: { Accept: 'application/json' },
 		json: true,
 	};
 
@@ -59,20 +63,12 @@ export async function dmlyApiRequest(
 	}
 
 	try {
-		return (await this.helpers.httpRequest(options)) as IDataObject | IDataObject[];
+		return (await this.helpers.httpRequestWithAuthentication.call(this, 'dmlyApi', options)) as
+			| IDataObject
+			| IDataObject[];
 	} catch (error) {
 		throw new NodeApiError(this.getNode(), error as JsonObject);
 	}
-}
-
-async function dmlyBaseRequest(
-	ctx: DmlyRequestContext,
-	endpoint: string,
-): Promise<{ url: string; apiKey: string }> {
-	const credentials = await ctx.getCredentials('dmlyApi');
-	const baseUrl = ((credentials.baseUrl as string) || DEFAULT_BASE_URL).replace(/\/+$/, '');
-	const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-	return { url: `${baseUrl}${path}`, apiKey: credentials.apiKey as string };
 }
 
 /**
@@ -86,7 +82,6 @@ export async function dmlyApiUpload(
 	fileName: string,
 	mimeType: string,
 ): Promise<IDataObject> {
-	const { url, apiKey } = await dmlyBaseRequest(this, endpoint);
 	const boundary = `----dmly${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
 	const safeName = fileName.replace(/["\r\n]/g, '_');
 	const body = Buffer.concat([
@@ -99,12 +94,11 @@ export async function dmlyApiUpload(
 	]);
 
 	try {
-		const response = await this.helpers.httpRequest({
+		const response = await this.helpers.httpRequestWithAuthentication.call(this, 'dmlyApi', {
 			method: 'POST',
-			url,
+			url: await dmlyUrl(this, endpoint),
 			headers: {
 				Accept: 'application/json',
-				'x-api-key': apiKey,
 				'Content-Type': `multipart/form-data; boundary=${boundary}`,
 			},
 			body,
@@ -120,14 +114,12 @@ export async function dmlyApiDownload(
 	this: DmlyRequestContext,
 	endpoint: string,
 ): Promise<{ data: Buffer; fileName?: string; mimeType?: string }> {
-	const { url, apiKey } = await dmlyBaseRequest(this, endpoint);
-
 	let response: { body: ArrayBuffer | Buffer; headers: IDataObject; statusCode: number };
 	try {
-		response = (await this.helpers.httpRequest({
+		response = (await this.helpers.httpRequestWithAuthentication.call(this, 'dmlyApi', {
 			method: 'GET',
-			url,
-			headers: { Accept: '*/*', 'x-api-key': apiKey },
+			url: await dmlyUrl(this, endpoint),
+			headers: { Accept: '*/*' },
 			encoding: 'arraybuffer',
 			returnFullResponse: true,
 			ignoreHttpStatusErrors: true,

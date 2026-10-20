@@ -1,5 +1,6 @@
 import {
 	IAuthenticateGeneric,
+	Icon,
 	ICredentialTestRequest,
 	ICredentialType,
 	INodeProperties,
@@ -9,6 +10,7 @@ export class DmlyApi implements ICredentialType {
 	name = 'dmlyApi';
 	displayName = 'DMLY API';
 	documentationUrl = 'https://docs.dmly.io/api-reference/introduction';
+	icon: Icon = 'file:dmly.svg';
 	properties: INodeProperties[] = [
 		{
 			displayName: 'Base URL',
@@ -30,7 +32,7 @@ export class DmlyApi implements ICredentialType {
 			default: '',
 			required: true,
 			description:
-				'A workspace API key (starts with <code>dmly_</code>). Generate one in DMLY under Salesbot → Integrations → the "API" tile. The key is scoped to a single workspace.',
+				'A workspace API key (starts with <code>dmly_</code>). Generate one in DMLY under Integrations (in the sidebar) → the "API" tile. The key is scoped to a single workspace.',
 		},
 	];
 

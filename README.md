@@ -16,7 +16,7 @@ In n8n go to **Settings → Community Nodes → Install** and enter `n8n-nodes-d
 
 ## Credentials
 
-1. In DMLY, open **Salesbot → Integrations** and click the **API** tile, then **Generate** a key (or run `php artisan dmly:api-key create` on the server). Copy the `dmly_…` key; it is shown only once. Each key is scoped to a single workspace.
+1. In DMLY, open **Integrations** in the sidebar (under *Configurations*) and click the **API** tile, then **Generate** a key. Copy the `dmly_…` key; it is shown only once. Each key is scoped to a single workspace.
 2. In n8n create **DMLY API** credentials:
    - **Base URL** defaults to `https://dash.dmly.io/api/v1`. Change it only for a self-hosted, agency or white-label instance (it must end in `/api/v1`).
    - **API Key** is the `dmly_…` key.
@@ -63,9 +63,9 @@ The **DMLY Trigger** node starts a workflow when DMLY sends a webhook. Pick one 
 DMLY allows **one webhook subscription per workspace**, so the trigger offers two registration modes:
 
 - **Automatic** (default): while the workflow is active, the node registers its own URL, subscribed events and a signing secret with DMLY, and removes them when you deactivate. If another consumer (or the dashboard webhook) already owns the workspace's subscription, the node tells you instead of clobbering it. Requires n8n to be reachable at a **public HTTPS URL** (DMLY rejects private and localhost hosts).
-- **Manual**: the node only listens. You point DMLY at the node's Production URL yourself (**Salesbot → Integrations → Webhooks**) and paste the `whsec_` signing secret into the node. Use this when the dashboard should own the webhook, when fanning one endpoint out to several workflows, or for local development behind a tunnel.
+- **Manual**: the node only listens. You point DMLY at the node's Production URL yourself (**Integrations → Webhooks** in the DMLY sidebar) and paste the `whsec_` signing secret into the node. Use this when the dashboard should own the webhook, when fanning one endpoint out to several workflows, or for local development behind a tunnel.
 
-Every delivery is verified against its `X-Dmly-Signature` header (HMAC-SHA256 of the raw body), filtered to the events you selected, and de-duplicated on `X-Dmly-Delivery` so a retried delivery doesn't run your workflow twice. The legacy `X-Salesbot-*` headers are still accepted as a fallback. Turn verification off only for testing.
+Every delivery is verified against its `X-Dmly-Signature` header (HMAC-SHA256 of the raw body), filtered to the events you selected, and de-duplicated on `X-Dmly-Delivery` so a retried delivery doesn't run your workflow twice. Header names from earlier DMLY versions are still accepted as a fallback. Turn verification off only for testing.
 
 ## Upgrading from 0.x
 
@@ -85,8 +85,9 @@ After upgrading, re-create your DMLY credentials with a new key and rebuild affe
 
 ## Version history
 
+- **1.1.1**: Meets n8n's verified-node checks: the DMLY node is usable as an A.I. Agent tool, requests go through n8n's built-in credential authentication, the credential has an icon, and errors are reported with the item that failed.
 - **1.1.0**: Brought up to date with the current DMLY API.
-  - **Trigger:** verifies `X-Dmly-Signature` and reads `X-Dmly-Event` (with `X-Salesbot-*` fallback), and skips duplicate deliveries by `X-Dmly-Delivery`. Upgrade before DMLY stops sending the legacy headers.
+  - **Trigger:** verifies `X-Dmly-Signature` and reads `X-Dmly-Event` (falling back to the older header names), and skips duplicate deliveries by `X-Dmly-Delivery`. Upgrade before DMLY stops sending the older headers.
   - **New resource:** Gift Card (list, get, sell or issue, redeem against an invoice).
   - **Payment:** new Create Payment Link operation; `external_reference` on Create and as a list filter.
   - **Class Session:** create recurring classes (frequency + count), filter by recurrence, and update or delete a whole series.
