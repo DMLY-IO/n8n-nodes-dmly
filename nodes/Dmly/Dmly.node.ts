@@ -1,4 +1,5 @@
 import type {
+	IBinaryKeyData,
 	IDataObject,
 	IExecuteFunctions,
 	ILoadOptionsFunctions,
@@ -9,7 +10,7 @@ import type {
 } from 'n8n-workflow';
 import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
-import { dmlyApiRequestAllItems, normalizeDmlyResponse } from './GenericFunctions';
+import { BINARY_RESULT, dmlyApiRequestAllItems, normalizeDmlyResponse } from './GenericFunctions';
 
 import { accountOperations, accountFields } from './descriptions/AccountDescription';
 import { appointmentOperations, appointmentFields } from './descriptions/AppointmentDescription';
@@ -21,6 +22,7 @@ import { classSessionOperations, classSessionFields } from './descriptions/Class
 import { contactOperations, contactFields } from './descriptions/ContactDescription';
 import { conversationOperations, conversationFields } from './descriptions/ConversationDescription';
 import { couponOperations, couponFields } from './descriptions/CouponDescription';
+import { giftCardOperations, giftCardFields } from './descriptions/GiftCardDescription';
 import { invoiceOperations, invoiceFields } from './descriptions/InvoiceDescription';
 import { mediaOperations, mediaFields } from './descriptions/MediaDescription';
 import { messageOperations, messageFields } from './descriptions/MessageDescription';
@@ -46,6 +48,7 @@ import { handleClassSession } from './actions/classSession';
 import { handleContact } from './actions/contact';
 import { handleConversation } from './actions/conversation';
 import { handleCoupon } from './actions/coupon';
+import { handleGiftCard } from './actions/giftCard';
 import { handleInvoice } from './actions/invoice';
 import { handleMedia } from './actions/media';
 import { handleMessage } from './actions/message';
@@ -78,6 +81,7 @@ const HANDLERS: Record<string, ResourceHandler> = {
 	contact: handleContact,
 	conversation: handleConversation,
 	coupon: handleCoupon,
+	giftCard: handleGiftCard,
 	invoice: handleInvoice,
 	media: handleMedia,
 	message: handleMessage,
@@ -131,6 +135,7 @@ export class Dmly implements INodeType {
 					{ name: 'Contact', value: 'contact' },
 					{ name: 'Conversation', value: 'conversation' },
 					{ name: 'Coupon', value: 'coupon' },
+					{ name: 'Gift Card', value: 'giftCard' },
 					{ name: 'Invoice', value: 'invoice' },
 					{ name: 'Media', value: 'media' },
 					{ name: 'Message', value: 'message' },
@@ -159,6 +164,7 @@ export class Dmly implements INodeType {
 			...contactOperations,
 			...conversationOperations,
 			...couponOperations,
+			...giftCardOperations,
 			...invoiceOperations,
 			...mediaOperations,
 			...messageOperations,
@@ -184,6 +190,7 @@ export class Dmly implements INodeType {
 			...contactFields,
 			...conversationFields,
 			...couponFields,
+			...giftCardFields,
 			...invoiceFields,
 			...mediaFields,
 			...messageFields,
@@ -227,6 +234,11 @@ export class Dmly implements INodeType {
 			try {
 				const operation = this.getNodeParameter('operation', i) as string;
 				const responseData = await handler(this, operation, i);
+				if (!Array.isArray(responseData) && responseData[BINARY_RESULT]) {
+					const { [BINARY_RESULT]: binary, ...json } = responseData;
+					returnData.push({ json, binary: binary as IBinaryKeyData, pairedItem: { item: i } });
+					continue;
+				}
 				const normalized = normalizeDmlyResponse(responseData);
 				returnData.push(
 					...normalized.map((json) => ({ json, pairedItem: { item: i } })),

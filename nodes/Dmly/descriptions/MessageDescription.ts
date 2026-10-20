@@ -57,6 +57,7 @@ export const messageFields: INodeProperties[] = [
 		displayOptions: { show: { resource: ['message'], operation: ['send'] } },
 		options: [
 			{ displayName: 'Body', name: 'body', type: 'string', typeOptions: { rows: 3 }, default: '', description: 'Message text body (max 4096 characters)' },
+			{ displayName: 'Header', name: 'header', type: 'json', default: '{}', placeholder: '{"url": "https://example.com/invoice.pdf", "filename": "invoice.pdf"}', description: 'For a WhatsApp template approved with a header. A document, image or video header takes the public https link to the file plus an optional filename (see the placeholder); a text header with a variable takes {"parameters": ["value"]}. Ignored for templates without a header.' },
 			{ displayName: 'Kind', name: 'kind', type: 'options', options: KIND_OPTIONS, default: 'dm', description: 'Message kind: a direct message or a comment' },
 			{ displayName: 'Media', name: 'media', type: 'json', default: '[]', description: 'Media payload array for non-text messages' },
 			{ displayName: 'Parameters', name: 'parameters', type: 'json', default: '[]', description: 'Ordered {{n}} template parameter values' },

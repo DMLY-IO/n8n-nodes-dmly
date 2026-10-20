@@ -35,12 +35,13 @@ export const mediaFields: INodeProperties[] = [
 
 	// ---- upload ----
 	{
-		displayName: 'File',
-		name: 'file',
+		displayName: 'Input Binary Field',
+		name: 'binaryPropertyName',
 		type: 'string',
 		required: true,
-		default: '',
-		description: 'The binary file to upload, sent as a multipart/form-data "file" part (e.g. product-photo.jpg)',
+		default: 'data',
+		hint: 'The name of the input binary field containing the file to upload',
+		description: 'Binary property of the incoming item that holds the file (e.g. from a Read/Write Files or HTTP Request node)',
 		displayOptions: { show: { resource: ['media'], operation: ['upload'] } },
 	},
 

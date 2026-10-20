@@ -36,6 +36,7 @@ export const contactOperations: INodeProperties[] = [
 			{ name: 'Add Tags', value: 'addTags', action: 'Add tags to a contact', description: 'Add tags to a contact by name' },
 			{ name: 'Create', value: 'create', action: 'Create a contact', description: 'Create a new contact' },
 			{ name: 'Delete', value: 'delete', action: 'Delete a contact', description: 'Delete a contact' },
+			{ name: 'Export Data', value: 'dataExport', action: 'Export all data held about a contact', description: 'Download a ZIP of every record held about a person (data-access requests). Needs the privacy:read permission.' },
 			{ name: 'Get', value: 'get', action: 'Get a contact', description: 'Get a single contact' },
 			{ name: 'Get Many', value: 'getAll', action: 'Get many contacts', description: 'Get many contacts' },
 			{ name: 'Remove Tags', value: 'removeTags', action: 'Remove tags from a contact', description: 'Remove tags from a contact by name' },
@@ -58,9 +59,18 @@ export const contactFields: INodeProperties[] = [
 		displayOptions: {
 			show: {
 				resource: ['contact'],
-				operation: ['addNote', 'addTags', 'delete', 'get', 'removeTags', 'setLifecycle', 'setStage', 'update'],
+				operation: ['addNote', 'addTags', 'dataExport', 'delete', 'get', 'removeTags', 'setLifecycle', 'setStage', 'update'],
 			},
 		},
+	},
+	{
+		displayName: 'Put Output File in Field',
+		name: 'binaryPropertyName',
+		type: 'string',
+		required: true,
+		default: 'data',
+		hint: 'The name of the output binary field to put the ZIP archive in',
+		displayOptions: { show: { resource: ['contact'], operation: ['dataExport'] } },
 	},
 
 	// ---- create ----
@@ -82,9 +92,12 @@ export const contactFields: INodeProperties[] = [
 		displayOptions: { show: { resource: ['contact'], operation: ['create'] } },
 		options: [
 			{ displayName: 'Channel Name or ID', name: 'channel', type: 'options', typeOptions: { loadOptionsMethod: 'getChannels' }, default: '', description: 'Channel to attach a messaging identity to. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.' },
+			{ displayName: 'Consent Page URL', name: 'consentPageUrl', type: 'string', default: '', description: 'URL of the page where marketing consent was captured (stored in consent history)' },
+			{ displayName: 'Consent Text', name: 'consentText', type: 'string', default: '', description: 'The exact words shown when the person consented (stored in consent history)' },
 			{ displayName: 'Custom Fields', name: 'customFields', type: 'json', default: '{}', description: 'Arbitrary key/value custom fields as a JSON object' },
 			{ displayName: 'Email', name: 'email', type: 'string', placeholder: 'name@email.com', default: '', description: 'The contact email address' },
 			{ displayName: 'Lifecycle Stage', name: 'lifecycleStage', type: 'options', options: LIFECYCLE_OPTIONS, default: 'lead', description: 'Initial CRM lifecycle stage' },
+			{ displayName: 'Marketing Consent', name: 'consent', type: 'boolean', default: false, description: 'Whether the person agreed to receive marketing messages. Only enable when they actually consented; it is recorded in their consent history.' },
 			{ displayName: 'Phone', name: 'phone', type: 'string', default: '', description: 'The contact phone number in E.164 format' },
 			{ displayName: 'Pipeline Stage ID', name: 'stage', type: 'string', default: '', description: 'Pipeline stage UUID to place the contact in' },
 			{ displayName: 'Source', name: 'source', type: 'string', default: '', description: 'Where the contact came from' },

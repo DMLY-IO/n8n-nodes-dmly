@@ -20,6 +20,13 @@ export type DmlyRequestContext =
 const DEFAULT_BASE_URL = 'https://dash.dmly.io/api/v1';
 
 /**
+ * Key an action handler sets on its result to return binary data (e.g. a ZIP
+ * export) alongside JSON. Its value is an IBinaryKeyData map; execute() moves
+ * it onto the output item's `binary`.
+ */
+export const BINARY_RESULT = '__dmlyBinary';
+
+/**
  * Make a single authenticated request to the DMLY REST API (/api/v1).
  * The workspace is selected by the API key, so no workspace id is ever sent.
  */
@@ -56,6 +63,115 @@ export async function dmlyApiRequest(
 	} catch (error) {
 		throw new NodeApiError(this.getNode(), error as JsonObject);
 	}
+}
+
+async function dmlyBaseRequest(
+	ctx: DmlyRequestContext,
+	endpoint: string,
+): Promise<{ url: string; apiKey: string }> {
+	const credentials = await ctx.getCredentials('dmlyApi');
+	const baseUrl = ((credentials.baseUrl as string) || DEFAULT_BASE_URL).replace(/\/+$/, '');
+	const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+	return { url: `${baseUrl}${path}`, apiKey: credentials.apiKey as string };
+}
+
+/**
+ * Upload one file as multipart/form-data with a single `file` part. The body is
+ * assembled by hand so the package keeps zero runtime dependencies.
+ */
+export async function dmlyApiUpload(
+	this: DmlyRequestContext,
+	endpoint: string,
+	file: Buffer,
+	fileName: string,
+	mimeType: string,
+): Promise<IDataObject> {
+	const { url, apiKey } = await dmlyBaseRequest(this, endpoint);
+	const boundary = `----dmly${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
+	const safeName = fileName.replace(/["\r\n]/g, '_');
+	const body = Buffer.concat([
+		Buffer.from(
+			`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${safeName}"\r\n` +
+				`Content-Type: ${mimeType || 'application/octet-stream'}\r\n\r\n`,
+		),
+		file,
+		Buffer.from(`\r\n--${boundary}--\r\n`),
+	]);
+
+	try {
+		const response = await this.helpers.httpRequest({
+			method: 'POST',
+			url,
+			headers: {
+				Accept: 'application/json',
+				'x-api-key': apiKey,
+				'Content-Type': `multipart/form-data; boundary=${boundary}`,
+			},
+			body,
+		});
+		return (typeof response === 'string' ? JSON.parse(response) : response) as IDataObject;
+	} catch (error) {
+		throw new NodeApiError(this.getNode(), error as JsonObject);
+	}
+}
+
+/** Download a binary response (e.g. a ZIP export), returning the bytes and the server's filename. */
+export async function dmlyApiDownload(
+	this: DmlyRequestContext,
+	endpoint: string,
+): Promise<{ data: Buffer; fileName?: string; mimeType?: string }> {
+	const { url, apiKey } = await dmlyBaseRequest(this, endpoint);
+
+	let response: { body: ArrayBuffer | Buffer; headers: IDataObject; statusCode: number };
+	try {
+		response = (await this.helpers.httpRequest({
+			method: 'GET',
+			url,
+			headers: { Accept: '*/*', 'x-api-key': apiKey },
+			encoding: 'arraybuffer',
+			returnFullResponse: true,
+			ignoreHttpStatusErrors: true,
+		})) as typeof response;
+	} catch (error) {
+		throw new NodeApiError(this.getNode(), error as JsonObject);
+	}
+
+	const data = Buffer.from(response.body as ArrayBuffer);
+
+	// With an arraybuffer response an error body arrives as raw bytes; decode it so
+	// DMLY's own message (e.g. a 403 permission or 429 rate-limit reason) survives.
+	if (response.statusCode >= 400) {
+		let parsed: JsonObject = { message: `DMLY returned HTTP ${response.statusCode}` };
+		try {
+			parsed = JSON.parse(data.toString('utf8')) as JsonObject;
+		} catch {
+			// Not JSON; keep the generic message.
+		}
+		throw new NodeApiError(this.getNode(), parsed, {
+			httpCode: String(response.statusCode),
+			message: typeof parsed.message === 'string' ? parsed.message : undefined,
+		});
+	}
+
+	return {
+		data,
+		fileName: fileNameFromDisposition(String(response.headers['content-disposition'] ?? '')),
+		mimeType: (response.headers['content-type'] as string | undefined)?.split(';')[0],
+	};
+}
+
+/** Prefer RFC 5987 `filename*=charset'lang'value`, else plain `filename=`; never throws. */
+function fileNameFromDisposition(disposition: string): string | undefined {
+	const extended = /filename\*\s*=\s*[^']*'[^']*'([^;]+)/i.exec(disposition);
+	if (extended) {
+		try {
+			return decodeURIComponent(extended[1].trim());
+		} catch {
+			// Malformed percent-encoding; fall through to the plain form.
+		}
+	}
+	const plain = /filename\s*=\s*"?([^";]+)"?/i.exec(disposition);
+	return plain ? plain[1].trim() : undefined;
 }
 
 /**

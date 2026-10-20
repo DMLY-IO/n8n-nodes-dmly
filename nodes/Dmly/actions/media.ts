@@ -1,7 +1,7 @@
 import type { IDataObject, IExecuteFunctions } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
 
-import { dmlyApiRequest, dmlyApiRequestAllItems } from '../GenericFunctions';
+import { dmlyApiRequest, dmlyApiRequestAllItems, dmlyApiUpload } from '../GenericFunctions';
 
 export async function handleMedia(
 	ctx: IExecuteFunctions,
@@ -29,8 +29,16 @@ export async function handleMedia(
 	}
 
 	if (operation === 'upload') {
-		const body: IDataObject = { file: ctx.getNodeParameter('file', i) as string };
-		return dmlyApiRequest.call(ctx, 'POST', '/media', body);
+		const propertyName = ctx.getNodeParameter('binaryPropertyName', i) as string;
+		const binary = ctx.helpers.assertBinaryData(i, propertyName);
+		const buffer = await ctx.helpers.getBinaryDataBuffer(i, propertyName);
+		return dmlyApiUpload.call(
+			ctx,
+			'/media',
+			buffer,
+			binary.fileName ?? `upload.${binary.fileExtension ?? 'bin'}`,
+			binary.mimeType,
+		);
 	}
 
 	if (operation === 'delete') {
